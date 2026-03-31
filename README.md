@@ -2,19 +2,24 @@
 
 Auto-reframe Insta360 X4 360-degree basketball video into standard rectangular video for YouTube.
 
-Takes equirectangular video from a 360 camera, detects the basketball action using YOLO, and outputs a smoothly-panned 1080p video that follows the game.
+Takes equirectangular video from a 360 camera and produces a smoothly-panned 1080p video that follows the game action — learned from your own manual camera work using behavioral cloning.
 
 ## How it works
 
-1. **Tiled detection** — Extracts overlapping perspective tiles from the equirectangular frame, runs YOLO on each tile, then merges detections with NMS
-2. **Virtual camera** — Computes a target yaw/pitch/FOV based on player and ball positions (weighted toward the ball)
-3. **Trajectory smoothing** — Two-stage smoothing: per-frame exponential smoothing + post-hoc uniform filter to eliminate jitter
-4. **Rectilinear extraction** — Reprojects the equirectangular frame to a standard perspective crop at the computed camera position
+**You are the training data.** When you manually pan through a 360 video in the Insta360 app and export it, the app saves your pan/tilt/zoom decisions in an `.insprj` sidecar file. This project trains a neural network to replicate those decisions automatically on new footage.
+
+1. **Parse** `.insprj` sidecar files to extract per-frame camera trajectories
+2. **Train** a CNN+GRU model to predict camera parameters from equirectangular frames
+3. **Infer** on new 360 video to produce a predicted camera trajectory
+4. **Render** by extracting smoothed rectilinear crops from the equirectangular source
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed explanation of the approach, model design, and rationale.
 
 ## Prerequisites
 
 - Python 3.10+
-- FFmpeg (for video output): `brew install ffmpeg`
+- FFmpeg: `brew install ffmpeg`
+- A GPU is recommended for training (CUDA or Apple MPS). CPU works but is slow.
 
 ## Install
 
@@ -24,59 +29,91 @@ cd basketball-360-autoframe
 pip install -e ".[dev]"
 ```
 
-## Usage
+## Quick Start
 
-```bash
-# Basic usage — reframe a 360 video
-autoframe reframe path/to/360_video.mp4
+### 1. Prepare training data
 
-# Specify output path and FOV
-autoframe reframe input.mp4 -o output.mp4 --fov 80
+Place your Insta360 source videos and their `.insprj` sidecar files (from Insta360 Studio) in the same directory:
 
-# Adjust smoothing (higher = smoother camera, slower to react)
-autoframe reframe input.mp4 --smoothing 0.9
-
-# Use a custom YOLO model
-autoframe reframe input.mp4 --model path/to/custom_model.pt
-
-# Show live preview while processing
-autoframe reframe input.mp4 --preview
-
-# Check video info (resolution, fps, equirectangular detection)
-autoframe info path/to/video.mp4
+```
+data/training/
+    game_01.mp4
+    game_01.insprj
+    game_02.mp4
+    game_02.insprj
 ```
 
-## CLI Options
+Verify your sidecars parse correctly:
+```bash
+autoframe parse-sidecar data/training/game_01.insprj
+```
 
-| Option | Default | Description |
-|---|---|---|
-| `--output, -o` | `<input>_reframed.mp4` | Output video path |
-| `--model, -m` | `yolov8n.pt` | YOLO model (auto-downloads if not found) |
-| `--fov` | `90` | Virtual camera field of view (degrees) |
-| `--width, -w` | `1920` | Output width |
-| `--height, -h` | `1080` | Output height |
-| `--smoothing, -s` | `0.85` | Camera smoothing (0=instant, 0.99=frozen) |
-| `--confidence, -c` | `0.4` | Detection confidence threshold |
-| `--detect-every` | `3` | Run detection every N frames |
-| `--preview` | off | Show live preview window |
+### 2. Train the model
+
+```bash
+autoframe train data/training/
+```
+
+This will:
+- Pair each video with its sidecar trajectory
+- Train a ResNet-18 + GRU model via behavioral cloning
+- Save checkpoints to `runs/<timestamp>/`
+- Report per-epoch loss and yaw error in degrees
+
+### 3. Reframe new footage
+
+```bash
+autoframe reframe new_game.mp4 runs/<run>/best.pt
+```
+
+### 4. Upload to YouTube
+
+The output is a standard 1920x1080 H.264 MP4 — ready to upload.
+
+## CLI Reference
+
+```bash
+# Train the model
+autoframe train DATA_DIR [--epochs 100] [--batch-size 16] [--lr 1e-4]
+                         [--backbone resnet18] [--seq-len 60] [--sample-fps 5.0]
+
+# Reframe a video using a trained model
+autoframe reframe INPUT_VIDEO MODEL_CHECKPOINT [-o output.mp4]
+                  [--width 1920] [--height 1080] [--smooth 15] [--preview]
+
+# Show video info
+autoframe info VIDEO_FILE
+
+# Inspect a sidecar file
+autoframe parse-sidecar FILE.insprj
+```
 
 ## Project structure
 
 ```
 src/autoframe/
-    cli.py          — Typer CLI entry point
-    pipeline.py     — Two-pass processing pipeline
-    projection.py   — Equirectangular/rectilinear math
-    detector.py     — Tiled YOLO detection on 360 frames
-    camera.py       — Virtual camera controller + smoothing
-    video_io.py     — Video read/write via OpenCV + FFmpeg
-    config.py       — Dataclass configuration
+    cli.py              — Typer CLI (train, reframe, info, parse-sidecar)
+    config.py           — Dataclass configuration
+    insta360_parser.py  — Parse .insprj XML sidecar files
+    dataset.py          — PyTorch Dataset (frame sequences + camera labels)
+    model.py            — CameraPredictor (ResNet-18 + GRU → yaw/pitch/fov)
+    train.py            — Training loop with weighted Huber loss
+    camera.py           — Model-based inference camera controller
+    pipeline.py         — Two-pass inference pipeline (predict → render)
+    projection.py       — Equirectangular ↔ rectilinear projection math
+    video_io.py         — Video read (OpenCV) / write (FFmpeg)
 ```
+
+## How much training data do I need?
+
+5-10 manually-reframed games is a good starting point. At 30fps, that's 500K-1M frames. The model subsamples to 5fps during training (camera motion is smooth) and uses a pretrained ImageNet backbone, so it converges with relatively modest data.
+
+All games from the same venue is fine for V1 — the model may not generalize to other courts without additional training data.
 
 ## Next steps
 
-- [ ] Test with real Insta360 X4 footage and tune defaults
+- [ ] Test with real Insta360 X4 footage and validate .insprj parsing
+- [ ] Train initial model and evaluate yaw accuracy
 - [ ] Add audio passthrough from source video
-- [ ] Train or fine-tune YOLO on basketball-specific data for better ball detection
-- [ ] Add court-line detection for smarter framing
-- [ ] Support batch processing of multiple videos
+- [ ] Experiment with temporal augmentation (varying playback speed)
+- [ ] Support for .insdata sidecar format (from mobile app)

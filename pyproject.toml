@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "basketball-360-autoframe"
-version = "0.1.0"
+version = "0.2.0"
 description = "Auto-reframe Insta360 X4 360° basketball video into standard rectangular video for YouTube"
 readme = "README.md"
 license = "MIT"
@@ -12,14 +12,15 @@ requires-python = ">=3.10"
 authors = [
     { name = "Jason Sewell" },
 ]
-keywords = ["basketball", "360-video", "auto-reframe", "insta360", "yolo"]
+keywords = ["basketball", "360-video", "auto-reframe", "insta360", "behavioral-cloning"]
 dependencies = [
-    "ultralytics>=8.0",
+    "torch>=2.0",
+    "torchvision>=0.15",
     "opencv-python>=4.8",
     "numpy>=1.24",
+    "scipy>=1.11",
     "typer[all]>=0.12",
     "rich>=13.0",
-    "scipy>=1.11",
 ]
 
 [project.optional-dependencies]
@@ -40,7 +41,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = ["-ra", "--strict-markers", "-x", "--tb=short"]
 markers = [
-    "slow: tests that process video",
+    "slow: tests that process video or run model inference",
     "integration: tests requiring FFmpeg or GPU",
 ]
 

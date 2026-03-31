@@ -1,83 +1,91 @@
-"""Main processing pipeline — ties everything together.
+"""Main processing pipeline for inference.
 
-Reads equirectangular video → detects action → computes virtual camera path
-→ extracts reframed perspective crops → writes output video.
+Loads a trained model, runs it over the input video to predict camera
+trajectory, smooths the result, then renders the reframed output.
 """
 
+import cv2
 import numpy as np
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn
 
-from autoframe.camera import VirtualCamera, smooth_trajectory
-from autoframe.config import PipelineConfig
-from autoframe.detector import Detection, TiledDetector
+from autoframe.camera import InferenceCamera, smooth_trajectory
+from autoframe.config import InferenceConfig
 from autoframe.projection import equirect_to_rectilinear
 from autoframe.video_io import FrameReader, VideoWriter, check_ffmpeg
 
 console = Console()
 
 
-def run(config: PipelineConfig) -> str:
-    """Execute the full reframing pipeline.
+def run(config: InferenceConfig) -> str:
+    """Execute the reframing pipeline using a trained model.
 
     Args:
-        config: Pipeline configuration.
+        config: Inference configuration.
 
     Returns:
         Path to the output video file.
     """
-    # Preflight checks
     if not check_ffmpeg():
         console.print("[red]FFmpeg not found.[/red] Install it: brew install ffmpeg")
         raise SystemExit(1)
 
-    console.print(f"[bold]Input:[/bold] {config.input_path}")
+    if not config.model.checkpoint_path:
+        console.print(
+            "[red]No model checkpoint specified.[/red]\n"
+            "Train a model first with: autoframe train data/training/\n"
+            "Then run: autoframe reframe video.mp4 --model runs/<run>/best.pt"
+        )
+        raise SystemExit(1)
 
-    # Initialize components
+    console.print(f"[bold]Input:[/bold]  {config.input_path}")
+    console.print(f"[bold]Model:[/bold]  {config.model.checkpoint_path}")
+
+    # Initialize
     reader = FrameReader(config.input_path)
-    detector = TiledDetector(config.detection)
-    camera = VirtualCamera(config.camera)
+    camera = InferenceCamera(config.model.checkpoint_path)
+    camera.reset()
 
+    fps = reader.info["fps"]
     console.print(
         f"[dim]Video: {reader.info['width']}x{reader.info['height']} "
-        f"@ {reader.info['fps']:.1f}fps, "
+        f"@ {fps:.1f}fps, "
         f"{reader.info['frame_count']} frames "
         f"({reader.info['duration_sec']:.1f}s)[/dim]"
     )
 
-    fps = reader.info["fps"] or config.fps
-
-    # === Pass 1: Detect and compute raw camera trajectory ===
-    console.print("\n[bold cyan]Pass 1/2:[/bold cyan] Detecting action...")
+    # === Pass 1: Predict camera trajectory ===
+    console.print("\n[bold cyan]Pass 1/2:[/bold cyan] Predicting camera trajectory...")
     raw_yaws: list[float] = []
     raw_pitches: list[float] = []
     raw_fovs: list[float] = []
-    last_detections: list[Detection] = []
 
     with Progress(
         SpinnerColumn(),
         *Progress.get_default_columns(),
         TimeElapsedColumn(),
     ) as progress:
-        task = progress.add_task("Detecting...", total=len(reader))
+        task = progress.add_task("Predicting...", total=len(reader))
 
-        for i, frame in enumerate(reader):
-            if i % config.detection_interval == 0:
-                last_detections = detector.detect(frame)
-
-            yaw, pitch, fov = camera.update(last_detections)
-            raw_yaws.append(yaw)
-            raw_pitches.append(pitch)
-            raw_fovs.append(fov)
-
+        for frame in reader:
+            # Resize for model input
+            small = cv2.resize(
+                frame,
+                (config.model.frame_width, config.model.frame_height),
+            )
+            params = camera.predict_frame(small)
+            raw_yaws.append(params["yaw_deg"])
+            raw_pitches.append(params["pitch_deg"])
+            raw_fovs.append(params["fov_deg"])
             progress.advance(task)
 
-    # === Smooth the trajectory ===
-    console.print("[dim]Smoothing camera trajectory...[/dim]")
-    smooth_window = max(1, int(fps / 2))  # ~0.5 second window
-    yaws, pitches, fovs = smooth_trajectory(raw_yaws, raw_pitches, raw_fovs, smooth_window)
+    # === Smooth trajectory ===
+    console.print("[dim]Smoothing trajectory...[/dim]")
+    yaws, pitches, fovs = smooth_trajectory(
+        raw_yaws, raw_pitches, raw_fovs, config.smooth_window
+    )
 
-    # === Pass 2: Extract reframed crops ===
+    # === Pass 2: Render reframed output ===
     console.print(f"\n[bold cyan]Pass 2/2:[/bold cyan] Rendering to {config.output_path}")
     reader2 = FrameReader(config.input_path)
 
@@ -108,18 +116,14 @@ def run(config: PipelineConfig) -> str:
             writer.write(crop)
 
             if config.preview:
-                import cv2
-
                 cv2.imshow("Preview", crop)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
-                    console.print("[yellow]Preview cancelled by user.[/yellow]")
+                    console.print("[yellow]Cancelled by user.[/yellow]")
                     break
 
             progress.advance(task)
 
     if config.preview:
-        import cv2
-
         cv2.destroyAllWindows()
 
     console.print(f"\n[bold green]Done![/bold green] Output: {config.output_path}")

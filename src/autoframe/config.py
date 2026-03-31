@@ -1,60 +1,76 @@
 """Configuration and defaults for the autoframe pipeline."""
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass
 class CameraConfig:
-    """Virtual camera parameters."""
+    """Virtual camera output parameters."""
 
-    # Output resolution
     output_width: int = 1920
     output_height: int = 1080
 
-    # Initial virtual camera orientation (degrees)
-    initial_yaw: float = 0.0
-    initial_pitch: float = 0.0
 
-    # Field of view (degrees) — controls zoom level
-    fov: float = 90.0
-    min_fov: float = 60.0
-    max_fov: float = 120.0
+@dataclass
+class ModelConfig:
+    """Neural network architecture and inference parameters."""
 
-    # Smoothing — higher = smoother but slower to react
-    smoothing_factor: float = 0.85
+    # Architecture
+    backbone: str = "resnet18"  # resnet18, resnet34, efficientnet_b0
+    gru_hidden_size: int = 256
+    gru_num_layers: int = 2
+    dropout: float = 0.1
 
-    # How fast the camera can pan (degrees per frame)
-    max_pan_speed: float = 3.0
+    # Input preprocessing
+    frame_width: int = 640
+    frame_height: int = 320
+
+    # Trained model checkpoint
+    checkpoint_path: str = ""
 
 
 @dataclass
-class DetectionConfig:
-    """Object detection parameters."""
+class TrainingConfig:
+    """Training hyperparameters."""
 
-    model_path: str = "yolov8n.pt"
-    confidence_threshold: float = 0.4
-    player_class_id: int = 0  # COCO 'person' class
-    ball_class_id: int = 32  # COCO 'sports ball' class
+    # Data
+    data_dir: str = "data/training"  # Contains video + .insprj pairs
+    val_split: float = 0.15
+    sample_fps: float = 5.0  # Subsample from video FPS (camera motion is smooth)
+    sequence_length: int = 60  # Frames of context per training sample
 
-    # Tile-based detection for equirectangular input
-    # Extract N overlapping perspective tiles, run detection, merge results
-    num_tiles: int = 6
-    tile_fov: float = 90.0
-    tile_overlap: float = 0.15
+    # Optimization
+    epochs: int = 100
+    batch_size: int = 16
+    learning_rate: float = 1e-4
+    weight_decay: float = 1e-5
+    lr_scheduler: str = "cosine"  # cosine, step
+
+    # Loss weights (yaw is most important for basketball side-to-side action)
+    weight_yaw: float = 2.0
+    weight_pitch: float = 1.0
+    weight_fov: float = 1.0
+
+    # Augmentation
+    horizontal_flip: bool = True
+    temporal_jitter: bool = True
+
+    # Output
+    output_dir: str = "runs"
+    save_every: int = 10  # Save checkpoint every N epochs
 
 
 @dataclass
-class PipelineConfig:
-    """Top-level pipeline configuration."""
+class InferenceConfig:
+    """Top-level config for running inference (reframing a video)."""
 
     camera: CameraConfig = field(default_factory=CameraConfig)
-    detection: DetectionConfig = field(default_factory=DetectionConfig)
+    model: ModelConfig = field(default_factory=ModelConfig)
 
-    # Video I/O
     input_path: str = ""
     output_path: str = "data/output/reframed.mp4"
-    fps: float = 30.0
+    preview: bool = False
 
-    # Processing
-    detection_interval: int = 3  # Run detection every N frames (perf tradeoff)
-    preview: bool = False  # Show live preview window during processing
+    # Post-processing smoothing window (frames). Applied after model prediction.
+    smooth_window: int = 15

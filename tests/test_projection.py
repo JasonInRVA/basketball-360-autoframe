@@ -1,7 +1,6 @@
 """Tests for equirectangular projection math."""
 
 import numpy as np
-import pytest
 
 from autoframe.projection import pixel_to_spherical, tile_positions
 
@@ -35,7 +34,6 @@ def test_tile_positions_cover_360():
     """Tiles should span the full 360 degrees."""
     tiles = tile_positions(4, 90.0)
     yaws = [t[0] for t in tiles]
-    # Should be evenly spaced 90 degrees apart
     diffs = [yaws[i + 1] - yaws[i] for i in range(len(yaws) - 1)]
     for d in diffs:
         assert abs(d - 90.0) < 1e-6
