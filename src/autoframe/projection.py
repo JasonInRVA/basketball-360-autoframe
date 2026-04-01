@@ -1,8 +1,12 @@
 """Equirectangular <-> rectilinear projection math.
 
-Handles converting between the 360° equirectangular frame and standard
-perspective (rectilinear) views — the core math for both tile-based
-detection and final frame extraction.
+NOTE: This module is only used during training (to preprocess frames for
+the CNN) and for optional local preview. It is NOT on the critical output
+path — Insta360 Studio handles the actual rendering from the .insprj
+sidecar we generate. Bugs here affect model training quality, not output.
+
+Provides conversion between equirectangular and perspective views, and
+utilities for mapping pixel coordinates to spherical angles.
 """
 
 import numpy as np

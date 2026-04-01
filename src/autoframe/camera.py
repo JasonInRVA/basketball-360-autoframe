@@ -16,12 +16,6 @@ class InferenceCamera:
     """Runs the trained model to predict camera trajectory for a video."""
 
     def __init__(self, checkpoint_path: str, device: torch.device | None = None):
-        """Load a trained model from checkpoint.
-
-        Args:
-            checkpoint_path: Path to a .pt checkpoint file.
-            device: Compute device. Auto-detected if None.
-        """
         if device is None:
             device = _get_device()
         self.device = device
@@ -55,7 +49,6 @@ class InferenceCamera:
         """
         import cv2
 
-        # Preprocess
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame_t = torch.from_numpy(frame_rgb).float().permute(2, 0, 1) / 255.0
         frame_t = frame_t.to(self.device)
@@ -72,17 +65,7 @@ def smooth_trajectory(
 ) -> tuple[list[float], list[float], list[float]]:
     """Post-process smooth pass over the full trajectory.
 
-    Applied after model inference to reduce any remaining jitter.
     Uses circular smoothing for yaw to handle wraparound.
-
-    Args:
-        yaws: Per-frame yaw values in degrees.
-        pitches: Per-frame pitch values in degrees.
-        fovs: Per-frame FOV values in degrees.
-        window: Smoothing window size in frames.
-
-    Returns:
-        Smoothed (yaws, pitches, fovs).
     """
     rads = np.radians(yaws)
     sin_smooth = uniform_filter1d(np.sin(rads), size=window)

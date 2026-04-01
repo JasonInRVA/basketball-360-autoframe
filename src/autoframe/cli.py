@@ -82,33 +82,38 @@ def reframe(
         exists=True,
     ),
     output: Optional[Path] = typer.Option(
-        None, "--output", "-o", help="Output video path. Defaults to <input>_reframed.mp4.",
+        None, "--output", "-o",
+        help="Output .insprj path. Defaults to <input>.insprj.",
     ),
-    width: int = typer.Option(1920, "--width", "-w", help="Output video width."),
-    height: int = typer.Option(1080, "--height", "-h", help="Output video height."),
-    smooth: int = typer.Option(15, "--smooth", help="Post-prediction smoothing window (frames)."),
-    preview: bool = typer.Option(False, "--preview", help="Show live preview during rendering."),
+    smooth: int = typer.Option(
+        15, "--smooth",
+        help="Post-prediction smoothing window (frames).",
+    ),
+    keyframe_interval: float = typer.Option(
+        200.0, "--keyframe-interval",
+        help="Milliseconds between keyframes in output .insprj.",
+    ),
     version: Optional[bool] = typer.Option(
         None, "--version", "-v", callback=version_callback, is_eager=True, help="Show version.",
     ),
 ):
-    """Reframe a 360° video using a trained model.
+    """Generate an .insprj sidecar for a 360° video using a trained model.
 
     The model predicts where a human camera operator would point the virtual
-    camera at each frame, then extracts a standard rectangular crop.
+    camera at each frame. The output is an .insprj file that Insta360 Studio
+    can use to render the final reframed video with full quality and audio.
     """
-    from autoframe.config import CameraConfig, InferenceConfig, ModelConfig
+    from autoframe.config import InferenceConfig, ModelConfig
     from autoframe.pipeline import run
 
     if output is None:
-        output = input_video.with_stem(input_video.stem + "_reframed")
+        output = input_video.with_suffix(".insprj")
 
     config = InferenceConfig(
         input_path=str(input_video),
         output_path=str(output),
-        preview=preview,
         smooth_window=smooth,
-        camera=CameraConfig(output_width=width, output_height=height),
+        keyframe_interval_ms=keyframe_interval,
         model=ModelConfig(checkpoint_path=str(model)),
     )
 

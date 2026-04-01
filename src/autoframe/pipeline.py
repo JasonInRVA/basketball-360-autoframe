@@ -1,40 +1,40 @@
 """Main processing pipeline for inference.
 
-Loads a trained model, runs it over the input video to predict camera
-trajectory, smooths the result, then renders the reframed output.
+Single-pass pipeline: reads equirectangular video frames, runs the trained
+model to predict camera trajectory, smooths the result, and writes an
+.insprj sidecar file. The actual video rendering is handled by Insta360
+Studio, which reads the sidecar and produces the final output with full
+quality, audio, lens correction, and stabilization.
 """
 
 import cv2
-import numpy as np
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn
 
 from autoframe.camera import InferenceCamera, smooth_trajectory
 from autoframe.config import InferenceConfig
-from autoframe.projection import equirect_to_rectilinear
-from autoframe.video_io import FrameReader, VideoWriter, check_ffmpeg
+from autoframe.insta360_parser import trajectory_to_keyframes, write_insprj
+from autoframe.video_io import FrameReader
 
 console = Console()
 
 
 def run(config: InferenceConfig) -> str:
-    """Execute the reframing pipeline using a trained model.
+    """Execute the inference pipeline.
+
+    Reads video → predicts camera trajectory → writes .insprj sidecar.
 
     Args:
         config: Inference configuration.
 
     Returns:
-        Path to the output video file.
+        Path to the output .insprj file.
     """
-    if not check_ffmpeg():
-        console.print("[red]FFmpeg not found.[/red] Install it: brew install ffmpeg")
-        raise SystemExit(1)
-
     if not config.model.checkpoint_path:
         console.print(
             "[red]No model checkpoint specified.[/red]\n"
             "Train a model first with: autoframe train data/training/\n"
-            "Then run: autoframe reframe video.mp4 --model runs/<run>/best.pt"
+            "Then run: autoframe reframe video.mp4 runs/<run>/best.pt"
         )
         raise SystemExit(1)
 
@@ -54,8 +54,8 @@ def run(config: InferenceConfig) -> str:
         f"({reader.info['duration_sec']:.1f}s)[/dim]"
     )
 
-    # === Pass 1: Predict camera trajectory ===
-    console.print("\n[bold cyan]Pass 1/2:[/bold cyan] Predicting camera trajectory...")
+    # === Predict camera trajectory ===
+    console.print("\n[bold cyan]Predicting camera trajectory...[/bold cyan]")
     raw_yaws: list[float] = []
     raw_pitches: list[float] = []
     raw_fovs: list[float] = []
@@ -68,7 +68,6 @@ def run(config: InferenceConfig) -> str:
         task = progress.add_task("Predicting...", total=len(reader))
 
         for frame in reader:
-            # Resize for model input
             small = cv2.resize(
                 frame,
                 (config.model.frame_width, config.model.frame_height),
@@ -85,46 +84,29 @@ def run(config: InferenceConfig) -> str:
         raw_yaws, raw_pitches, raw_fovs, config.smooth_window
     )
 
-    # === Pass 2: Render reframed output ===
-    console.print(f"\n[bold cyan]Pass 2/2:[/bold cyan] Rendering to {config.output_path}")
-    reader2 = FrameReader(config.input_path)
+    # === Write .insprj sidecar ===
+    keyframes = trajectory_to_keyframes(
+        yaw_deg=yaws,
+        pitch_deg=pitches,
+        fov_deg=fovs,
+        fps=fps,
+        keyframe_interval_ms=config.keyframe_interval_ms,
+    )
 
-    with (
-        VideoWriter(
-            config.output_path,
-            config.camera.output_width,
-            config.camera.output_height,
-            fps,
-        ) as writer,
-        Progress(
-            SpinnerColumn(),
-            *Progress.get_default_columns(),
-            TimeElapsedColumn(),
-        ) as progress,
-    ):
-        task = progress.add_task("Rendering...", total=len(reader2))
+    output_path = write_insprj(
+        keyframes=keyframes,
+        output_path=config.output_path,
+        source_video_path=config.input_path,
+    )
 
-        for i, frame in enumerate(reader2):
-            crop = equirect_to_rectilinear(
-                frame,
-                yaws[i],
-                pitches[i],
-                fovs[i],
-                config.camera.output_width,
-                config.camera.output_height,
-            )
-            writer.write(crop)
+    console.print(f"\n[bold green]Done![/bold green] Sidecar: {output_path}")
+    console.print(
+        f"[dim]Generated {len(keyframes)} keyframes "
+        f"({config.keyframe_interval_ms:.0f}ms intervals)[/dim]"
+    )
+    console.print(
+        "\n[bold]Next step:[/bold] Open Insta360 Studio, import your source video,\n"
+        "load this sidecar file, and export the reframed video."
+    )
 
-            if config.preview:
-                cv2.imshow("Preview", crop)
-                if cv2.waitKey(1) & 0xFF == ord("q"):
-                    console.print("[yellow]Cancelled by user.[/yellow]")
-                    break
-
-            progress.advance(task)
-
-    if config.preview:
-        cv2.destroyAllWindows()
-
-    console.print(f"\n[bold green]Done![/bold green] Output: {config.output_path}")
-    return config.output_path
+    return str(output_path)

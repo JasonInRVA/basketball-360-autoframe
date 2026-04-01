@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "basketball-360-autoframe"
-version = "0.2.0"
-description = "Auto-reframe Insta360 X4 360° basketball video into standard rectangular video for YouTube"
+version = "0.3.0"
+description = "Generate Insta360 Studio sidecar files to auto-reframe 360° basketball video using behavioral cloning"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -42,7 +42,7 @@ pythonpath = ["src"]
 addopts = ["-ra", "--strict-markers", "-x", "--tb=short"]
 markers = [
     "slow: tests that process video or run model inference",
-    "integration: tests requiring FFmpeg or GPU",
+    "integration: tests requiring GPU",
 ]
 
 [tool.ruff]

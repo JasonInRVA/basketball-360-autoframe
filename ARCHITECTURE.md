@@ -51,8 +51,8 @@ from teleoperation), and game-playing AI (learn moves from expert replays).
 
 ```
 data/training/
-    game_2024_01_15.mp4          ← Raw equirectangular video
-    game_2024_01_15.insprj       ← Sidecar with keyframed pan/tilt/fov trajectory
+    game_2024_01_15.mp4          <- Raw equirectangular video
+    game_2024_01_15.insprj       <- Sidecar with keyframed pan/tilt/fov trajectory
     game_2024_02_03.mp4
     game_2024_02_03.insprj
     ...
@@ -66,39 +66,62 @@ The `.insprj` file is XML from Insta360 Studio:
 
 These sparse keyframes are interpolated to produce dense per-frame labels.
 
+## Key Design Decision: Output .insprj, Not Video
+
+A critical simplification: **the AI does not render video.** It outputs an `.insprj`
+sidecar file, and Insta360 Studio handles the actual rendering.
+
+This means we don't need to implement:
+- Equirectangular-to-rectilinear projection for output
+- Video encoding (H.264, audio muxing, color space handling)
+- Audio passthrough
+- Roll/distance parameter interpretation
+- Lens correction, stabilization, or any Insta360-specific processing
+
+The AI's job is narrow and well-defined: **predict a camera trajectory and write it
+as keyframes in a format Insta360 Studio understands.** Studio does the rest with
+full quality, audio, and all the edge cases already solved.
+
+### Why This Matters
+
+Every line of rendering code we don't write is a line that can't have bugs. Insta360
+has spent years perfecting their renderer. We leverage that instead of reimplementing
+it poorly.
+
 ## Model Architecture
 
 ```
-Equirectangular frame (640×320, RGB)
-  │
-  ▼
-┌─────────────────────────────────┐
-│  ResNet-18 (pretrained ImageNet)│   CNN backbone — extracts spatial features.
-│  Last FC removed → 512-dim     │   Early layers frozen (edges/textures transfer
-│  Early 75% frozen              │   from ImageNet). Only last block fine-tuned.
-└──────────────┬──────────────────┘
-               │ 512-dim feature vector per frame
-               ▼
-┌─────────────────────────────────┐
-│  2-layer GRU (hidden_size=256)  │   Temporal model — learns smooth camera motion,
-│  Batch-first, dropout=0.1      │   anticipation, and context from recent frames.
-└──────────────┬──────────────────┘
-               │ 256-dim hidden state per frame
-               ▼
-┌─────────────────────────────────┐
-│  Linear(256 → 64) → ReLU       │   Prediction head — outputs 4 values per frame.
-│  Linear(64 → 4)                │
-└──────────────┬──────────────────┘
-               │
-               ▼
-     (sin_yaw, cos_yaw, pitch, fov)
+Equirectangular frame (640x320, RGB)
+  |
+  v
++----------------------------------+
+|  ResNet-18 (pretrained ImageNet) |   CNN backbone -- extracts spatial features.
+|  Last FC removed -> 512-dim     |   Early layers frozen (edges/textures transfer
+|  Early 75% frozen               |   from ImageNet). Only last block fine-tuned.
++----------------+-----------------+
+                 | 512-dim feature vector per frame
+                 v
++----------------------------------+
+|  2-layer GRU (hidden_size=256)   |   Temporal model -- learns smooth camera motion,
+|  Batch-first, dropout=0.1       |   anticipation, and context from recent frames.
++----------------+-----------------+
+                 | 256-dim hidden state per frame
+                 v
++----------------------------------+
+|  Linear(256 -> 64) -> ReLU      |   Prediction head -- outputs 4 values per frame.
+|  Linear(64 -> 4)                |
++----------------+-----------------+
+                 |
+                 v
+      (sin_yaw, cos_yaw, pitch, fov)
 ```
 
 ### Why sin/cos encoding for yaw?
 
-Yaw (pan) is circular: 179° and -179° are 2° apart, but naively they look 358°
-apart. If we predicted raw yaw degrees, the model would see a huge loss spike at
-the ±180° boundary and produce erratic behavior there.
+Yaw (pan) is circular: 179 degrees and -179 degrees are 2 degrees apart, but
+naively they look 358 degrees apart. If we predicted raw yaw degrees, the model
+would see a huge loss spike at the +/-180 degree boundary and produce erratic
+behavior there.
 
 By encoding yaw as `(sin(yaw), cos(yaw))`, the representation is continuous
 everywhere on the circle. At inference time, we recover the angle with `atan2`.
@@ -116,11 +139,11 @@ The temporal context helps the model:
 | Parameter | Value | Rationale |
 |---|---|---|
 | Loss | Smooth-L1 (Huber) | Robust to outliers, better than MSE for regression |
-| Yaw weight | 2× | Basketball action is primarily horizontal (side-to-side) |
+| Yaw weight | 2x | Basketball action is primarily horizontal (side-to-side) |
 | Optimizer | AdamW | Standard for fine-tuning pretrained models |
 | LR schedule | Cosine annealing | Smooth decay, avoids sharp LR drops |
 | Grad clipping | max_norm=1.0 | Prevents gradient explosions in GRU |
-| Sequence length | 60 frames | ~12 seconds at 5fps — enough temporal context |
+| Sequence length | 60 frames | ~12 seconds at 5fps -- enough temporal context |
 | Sample FPS | 5.0 | Camera motion is smooth; 30fps is redundant for labels |
 | Batch size | 16 | 16 sequences of 60 frames each |
 | Augmentation | Horizontal flip | Mirrors the court, negates sin(yaw), doubles effective data |
@@ -128,34 +151,39 @@ The temporal context helps the model:
 ### Data augmentation: horizontal flip
 
 Flipping the equirectangular frame horizontally is equivalent to mirroring the
-court. When we flip, we negate `sin(yaw)` but keep `cos(yaw)` — this correctly
+court. When we flip, we negate `sin(yaw)` but keep `cos(yaw)` -- this correctly
 mirrors the angular target. This effectively doubles the training data and prevents
 the model from developing a left/right bias.
 
 ## Inference Pipeline
 
 ```
-┌─────────────────────┐
-│ Pass 1: Predict      │  Read equirectangular frames → resize to 640×320
-│                      │  → run through trained model → collect raw
-│                      │  (yaw, pitch, fov) predictions per frame
-└──────────┬──────────┘
-           ▼
-┌─────────────────────┐
-│ Smooth trajectory    │  Post-hoc uniform filter on sin/cos(yaw), pitch, fov.
-│                      │  Removes any residual jitter the model produces.
-└──────────┬──────────┘
-           ▼
-┌─────────────────────┐
-│ Pass 2: Render       │  For each frame, use equirect→rectilinear projection
-│                      │  to extract 1920×1080 crop at the predicted position.
-│                      │  Write to output video via FFmpeg (H.264, CRF 18).
-└─────────────────────┘
++-----------------------+
+| Predict trajectory    |  Read equirectangular frames -> resize to 640x320
+|                       |  -> run through trained model -> collect raw
+|                       |  (yaw, pitch, fov) predictions per frame
++-----------+-----------+
+            v
++-----------------------+
+| Smooth trajectory     |  Post-hoc uniform filter on sin/cos(yaw), pitch, fov.
+|                       |  Removes any residual jitter the model produces.
++-----------+-----------+
+            v
++-----------------------+
+| Write .insprj         |  Convert dense per-frame predictions to sparse
+|                       |  keyframes (every 200ms). Write XML sidecar file
+|                       |  compatible with Insta360 Studio.
++-----------+-----------+
+            v
++-----------------------+
+| Insta360 Studio       |  User opens Studio, loads source video + sidecar,
+| (external)            |  and exports the final reframed video with full
+|                       |  quality, audio, stabilization, lens correction.
++-----------------------+
 ```
 
-Two passes are necessary because smoothing requires the full trajectory before
-rendering. This also means the model runs on small (640×320) frames in pass 1,
-while the full-resolution frames are only read in pass 2 for final rendering.
+This is a single-pass pipeline. No video rendering, no FFmpeg, no audio handling.
+The AI predicts, we write XML, Studio renders.
 
 ## Preparing Training Data
 
@@ -164,7 +192,7 @@ Mount the Insta360 X4 on a tripod at the court. Record full games.
 
 ### Step 2: Create the camera trajectory
 In the Insta360 app (mobile) or Insta360 Studio (desktop), manually reframe the
-video — pan, tilt, and zoom to follow the game as you'd want the final video to
+video -- pan, tilt, and zoom to follow the game as you'd want the final video to
 look. Export the reframed video to YouTube as you normally would.
 
 ### Step 3: Extract the sidecar
@@ -181,6 +209,14 @@ matching filenames.
 ```bash
 autoframe train data/training/ --epochs 100
 ```
+
+### Step 6: Generate sidecar for new footage
+```bash
+autoframe reframe new_game.mp4 runs/<run>/best.pt
+```
+
+### Step 7: Render in Insta360 Studio
+Open Studio, import the source video, load the generated `.insprj`, and export.
 
 ## What This Architecture Cannot Do (Known Limitations)
 
@@ -200,15 +236,24 @@ autoframe train data/training/ --epochs 100
    very long sequences (>30 min). The post-hoc smoothing mitigates this, and
    the model can be reset at natural breaks (halftime, timeouts).
 
+5. **Dependent on Insta360 Studio.** The output is an `.insprj` file, not a
+   standalone video. You need Insta360 Studio to produce the final output. This
+   is a deliberate tradeoff: we leverage their polished renderer instead of
+   building our own.
+
+6. **Sidecar format is not officially documented.** Our `.insprj` writer is based
+   on reverse-engineered format documentation. If Insta360 changes the format in
+   a future Studio update, the writer may need updating.
+
 ## Key References
 
-- **Deep 360 Pilot** (Hu et al., CVPR 2017) — Pioneered RL-based virtual camera
-  control for 360° sports video. Our approach uses supervised behavioral cloning
+- **Deep 360 Pilot** (Hu et al., CVPR 2017) -- Pioneered RL-based virtual camera
+  control for 360 sports video. Our approach uses supervised behavioral cloning
   instead of RL, which is simpler and leverages the available expert demonstrations.
   Reference implementation: `yenchenlin/Deep360Pilot-CVPR17`
 
-- **Pano2Vid** (Su et al., 2016) — Automatic cinematography from 360° video using
+- **Pano2Vid** (Su et al., 2016) -- Automatic cinematography from 360 video using
   candidate viewing directions.
 
-- **Insta360 .insprj format** — Documented at `insta.pk360.de/studio202x_insprj/`.
+- **Insta360 .insprj format** -- Documented at `insta.pk360.de/studio202x_insprj/`.
   XML format with keyframe pan/tilt/roll/fov and easing curves.

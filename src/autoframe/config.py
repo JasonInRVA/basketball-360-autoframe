@@ -1,15 +1,6 @@
 """Configuration and defaults for the autoframe pipeline."""
 
 from dataclasses import dataclass, field
-from pathlib import Path
-
-
-@dataclass
-class CameraConfig:
-    """Virtual camera output parameters."""
-
-    output_width: int = 1920
-    output_height: int = 1080
 
 
 @dataclass
@@ -22,7 +13,7 @@ class ModelConfig:
     gru_num_layers: int = 2
     dropout: float = 0.1
 
-    # Input preprocessing
+    # Input preprocessing — frames are downsampled to this size for the CNN
     frame_width: int = 640
     frame_height: int = 320
 
@@ -63,14 +54,17 @@ class TrainingConfig:
 
 @dataclass
 class InferenceConfig:
-    """Top-level config for running inference (reframing a video)."""
+    """Top-level config for running inference (generating a sidecar)."""
 
-    camera: CameraConfig = field(default_factory=CameraConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
 
     input_path: str = ""
-    output_path: str = "data/output/reframed.mp4"
-    preview: bool = False
+    output_path: str = ""  # .insprj output path (defaults to <input>.insprj)
 
     # Post-processing smoothing window (frames). Applied after model prediction.
     smooth_window: int = 15
+
+    # Keyframe density in the output .insprj (milliseconds between keyframes).
+    # 200ms = 5 keyframes/sec — dense enough for smooth motion, sparse enough
+    # for Insta360 Studio to handle comfortably.
+    keyframe_interval_ms: float = 200.0
