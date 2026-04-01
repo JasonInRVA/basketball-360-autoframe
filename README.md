@@ -108,8 +108,18 @@ src/autoframe/
 
 ## Next steps
 
-- [ ] Test with real Insta360 X4 footage and validate .insprj parsing
-- [ ] Verify generated .insprj files load correctly in Insta360 Studio
-- [ ] Train initial model and evaluate yaw accuracy
-- [ ] Experiment with temporal augmentation (varying playback speed)
-- [ ] Support for .insdata sidecar format (from mobile app)
+Immediate execution plan (see also `VALIDATION_SPRINT_PLAN.md`):
+
+- [ ] Run Studio sidecar compatibility matrix across target footage + Studio versions
+- [ ] Log each import/export round-trip result in `artifacts/validation/compatibility-matrix.csv`
+- [ ] Complete Media SDK fallback spike (`insv` -> stitched `mp4`) for one reference clip
+- [ ] Decide go/no-go using documented thresholds in `VALIDATION_SPRINT_PLAN.md`
+- [ ] If go: continue model iteration against validated sidecar schema
+- [ ] If no-go: pivot to SDK-backed render pipeline
+
+Validation helper commands:
+
+```bash
+python scripts/validation_matrix.py generate --camera-models X4 --studio-versions 5.4.4 5.3.2 --clips game01_q1 game01_q2
+python scripts/validation_matrix.py summarize
+```
