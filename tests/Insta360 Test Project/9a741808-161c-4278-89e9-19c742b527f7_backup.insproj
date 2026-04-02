@@ -1,0 +1,423 @@
+{
+    "aspectRatio": "16:9",
+    "autoFps": true,
+    "creationTime": "2026.04.02 12:11:42",
+    "definitionEdited": false,
+    "definitionTypeByUser": 0,
+    "enableEffects": true,
+    "fps": 30,
+    "frames": 450,
+    "id": "9a741808-161c-4278-89e9-19c742b527f7",
+    "isPanoramic": false,
+    "lastModifiedTime": "2026.04.02 12:15:16",
+    "lowQualityProxyType": -1,
+    "mainMagnetizable": true,
+    "markTrimEnd": 450,
+    "markTrimIn": 0,
+    "markTrimVisible": false,
+    "name": "Test Project",
+    "projectPath": "/Users/jasonsewell/Desktop/Insta360 Test Project/Test Project",
+    "tracks": [
+        {
+            "audible": true,
+            "clips": [
+            ],
+            "id": "c4cdfd73-fc6e-4b3c-9e6c-4a7642aa945e",
+            "locked": false,
+            "transitions": [
+            ],
+            "type": 3,
+            "visible": true
+        },
+        {
+            "audible": true,
+            "clips": [
+                {
+                    "aspect_ratio_info": {
+                        "currentAspectRatio": "999",
+                        "current_aspect_ratio": 999,
+                        "supportAspectRatios": null,
+                        "support_aspect_ratios": [
+                            999,
+                            8,
+                            1,
+                            3,
+                            5
+                        ]
+                    },
+                    "audio_setting": {
+                        "currentDenoiseType": 0,
+                        "currentFadeIn": 0,
+                        "currentFadeOut": 0,
+                        "currentMixingWeight": 0,
+                        "currentTracksDelay": -2147483648,
+                        "currentVolume": 100,
+                        "defaultTracksDelay": -2147483648,
+                        "enableDenoise": false,
+                        "enableMixing": false,
+                        "maxFadeIn": 225,
+                        "maxFadeOut": 225,
+                        "supportAudio": true,
+                        "supportDenoise": true,
+                        "supportDenoiseTypes": [
+                            1,
+                            2
+                        ],
+                        "supportMixing": false
+                    },
+                    "camera_movement": {
+                        "camera_movement_models": [
+                        ]
+                    },
+                    "camera_transform": {
+                        "distance": 0.4007705748081207,
+                        "eulers": {
+                            "pitch": {
+                                "type": 0,
+                                "value": -0.32462576031684875
+                            },
+                            "roll": {
+                                "type": 0,
+                                "value": 0
+                            },
+                            "yaw": {
+                                "type": 0,
+                                "value": 0.0646330714225769
+                            }
+                        },
+                        "fov": {
+                            "type": 0,
+                            "value": 1.1827789545059204
+                        }
+                    },
+                    "deep_track": {
+                        "cache_path": "/Users/jasonsewell/Library/Application Support/Insta360/Insta360 Studio/cache/deeptrack_cache",
+                        "deep_track_list": [
+                            {
+                                "distance": 0.4007705748081207,
+                                "endTime": 733,
+                                "fake": false,
+                                "flags": 0,
+                                "fov": 0.7682389085149958,
+                                "id": 1775146319315,
+                                "name": "deepTrackArea1775146202888",
+                                "originalEndTime": 733,
+                                "originalStartTime": 134,
+                                "pitch_offset": 0,
+                                "resourceId": "",
+                                "resourceName": "",
+                                "roll_offset": 0,
+                                "src_end_time": 733,
+                                "src_original_end_time": 733,
+                                "src_original_start_time": 134,
+                                "src_start_time": 134,
+                                "startTime": 134,
+                                "type": 1,
+                                "yaw_offset": 0
+                            }
+                        ],
+                        "original_clip_id": "dcf6d329-2969-40f9-a2bf-1e701a73902a"
+                    },
+                    "dewarp_setting": {
+                        "aspectRatio": 8,
+                        "current_dewarp_type": {
+                            "name": "Dewarp",
+                            "value": 14
+                        },
+                        "fov_distance_range": {
+                            "is_max_x": false,
+                            "is_min_x": false,
+                            "max_distance": 1,
+                            "max_fov": 160.40260314941406,
+                            "min_distance": 0,
+                            "min_fov": 1
+                        },
+                        "removeDistortion": false
+                    },
+                    "enable_user_keyframe": true,
+                    "has_set_play_rate_manually": false,
+                    "head_track": {
+                        "head_track_list": [
+                        ]
+                    },
+                    "highlight_data": false,
+                    "id": "a269a4db-f320-4d9d-ac2a-69817db9cbf6",
+                    "key_frame_track": {
+                        "node_list": [
+                            {
+                                "auto_fov": 0,
+                                "distance": 0.4007705748081207,
+                                "fov": 1.1827789491344771,
+                                "is_headtrack": 0,
+                                "name": "point0",
+                                "node_type": 0,
+                                "pan": 0.20957749527329927,
+                                "roll": 0,
+                                "src_time": 0,
+                                "state": 7,
+                                "tilt": -0.31096054257368516,
+                                "time": 0
+                            },
+                            {
+                                "name": "point0-point1",
+                                "node_type": 1,
+                                "point1X": 0.5,
+                                "point1Y": 0.5,
+                                "point2X": 0.5,
+                                "point2Y": 0.5,
+                                "type": 1
+                            },
+                            {
+                                "auto_fov": 0,
+                                "distance": 0.4007705748081207,
+                                "fov": 1.1827789491344771,
+                                "is_headtrack": 0,
+                                "name": "point1",
+                                "node_type": 0,
+                                "pan": -0.4076052270835748,
+                                "roll": 0,
+                                "src_time": 55,
+                                "state": 7,
+                                "tilt": -0.3086227199002727,
+                                "time": 55
+                            },
+                            {
+                                "name": "point1-deepTrackArea1775146202888",
+                                "node_type": 1,
+                                "point1X": 0.5,
+                                "point1Y": 0.5,
+                                "point2X": 0.5,
+                                "point2Y": 0.5,
+                                "type": 1
+                            },
+                            {
+                                "auto_fov": 0,
+                                "distance": 0.4007705748081207,
+                                "fov": 0.7682389085149958,
+                                "is_headtrack": 0,
+                                "name": "deepTrackArea1775146202888",
+                                "node_type": 0,
+                                "pan": -0.5207849740982056,
+                                "roll": 0,
+                                "src_time": 134,
+                                "state": 3,
+                                "tilt": -0.32479000091552734,
+                                "time": 134
+                            },
+                            {
+                                "auto_fov": 0,
+                                "distance": 0.4007705748081207,
+                                "fov": 0.7682389085149958,
+                                "is_headtrack": 0,
+                                "name": "deepTrackArea1775146202888",
+                                "node_type": 0,
+                                "pan": 0.01133000012487173,
+                                "roll": 0,
+                                "src_time": 732,
+                                "state": 3,
+                                "tilt": -0.3663429915904999,
+                                "time": 732
+                            }
+                        ]
+                    },
+                    "lastTrimEditTime": 1773695682319,
+                    "leftTrim": 0,
+                    "media_process": {
+                        "colorAdjustAutoadjust": 0,
+                        "colorAdjustBlackpoint": 0,
+                        "colorAdjustBrightness": 0,
+                        "colorAdjustBrilliance": 0,
+                        "colorAdjustCommonMax": 100,
+                        "colorAdjustCommonMin": -100,
+                        "colorAdjustContrast": 0,
+                        "colorAdjustDefinition": 0,
+                        "colorAdjustDefinitionMin": 0,
+                        "colorAdjustExposure": 0,
+                        "colorAdjustHighlights": 0,
+                        "colorAdjustSaturation": 0,
+                        "colorAdjustShadows": 0,
+                        "colorAdjustTint": 0,
+                        "colorAdjustVibrance": 0,
+                        "colorAdjustWarmth": 0,
+                        "colorPlusStrength": 30,
+                        "colorPlusStrengthMax": 100,
+                        "colorPlusStrengthMin": 0,
+                        "enableAe": false,
+                        "enableBeautyMode": false,
+                        "enableColorAdjust": true,
+                        "enableColorPlus": false,
+                        "enableHorizontalCorrect": false,
+                        "enableLocalToneMapping": false,
+                        "enableLut": false,
+                        "enableMotionBlur": false,
+                        "enableMultiFrameDenoise": false,
+                        "enableSingleDenoise": true,
+                        "enableTimeLogo": false,
+                        "enableUnderWaterCorrect": false,
+                        "horizontalCorrectAngle": 0,
+                        "horizontalCorrectDefaultAngle": 0,
+                        "localToneMappingStrength": 30,
+                        "localToneMappingStrengthMax": 100,
+                        "localToneMappingStrengthMin": 0,
+                        "motionBlurEdited": false,
+                        "motionBlurStrength": 50,
+                        "motionBlurThreshold": 85,
+                        "supportAe": false,
+                        "supportColorAdjust": true,
+                        "supportColorPlus": true,
+                        "supportHorizontalCorrect": false,
+                        "supportLocalToneMapping": true,
+                        "supportLut": false,
+                        "supportMotionBlur": true,
+                        "supportSingleDenoise": false,
+                        "supportUnderWaterCorrect": true,
+                        "timeLogoFormat": 1,
+                        "timeLogoTransparency": 100,
+                        "underWaterBalance": 0,
+                        "underWaterBalanceMax": 50,
+                        "underWaterBalanceMin": -50,
+                        "underWaterStrength": 100,
+                        "underWaterStrengthMax": 100,
+                        "underWaterStrengthMin": 0,
+                        "underWaterStyle": 0
+                    },
+                    "name": "VID_012.insv",
+                    "online": false,
+                    "original_camera_transform": {
+                        "distance": 0.6,
+                        "eulers": {
+                            "pitch": {
+                                "type": 0,
+                                "value": 0
+                            },
+                            "roll": {
+                                "type": 0,
+                                "value": 0
+                            },
+                            "yaw": {
+                                "type": 0,
+                                "value": 0
+                            }
+                        },
+                        "fov": {
+                            "type": 1,
+                            "value": 75
+                        }
+                    },
+                    "original_left_trim": 0,
+                    "original_right_trim": 17813,
+                    "original_total_frames": 18263,
+                    "play_rate_track": {
+                        "play_rate_list": [
+                            {
+                                "defaultFactor": 1,
+                                "endTime": 18263,
+                                "maxPlayRate": 1,
+                                "minPlayRate": 1,
+                                "name": "41796e76-7010-417c-b3ec-bbf98ddd4f43",
+                                "originalEndTime": 18263,
+                                "originalStartTime": 0,
+                                "src_end_time": 18263,
+                                "src_original_end_time": 18263,
+                                "src_original_start_time": 0,
+                                "src_start_time": 0,
+                                "startTime": 0
+                            }
+                        ]
+                    },
+                    "popupApplyDefaultCameraTransformTips": true,
+                    "ratio": 8,
+                    "resourceId": "",
+                    "rightTrim": 17813,
+                    "roughTrimmed": true,
+                    "sourceFrames": 18263,
+                    "source_left_trim": 0,
+                    "source_left_trim_double": 0,
+                    "source_right_trim": 17813,
+                    "source_right_trim_double": 17813,
+                    "source_total_frames": 18263,
+                    "srcId": "",
+                    "stab_setting": {
+                        "enableCameraMovement": false,
+                        "enableDirectionalLock": true,
+                        "enableFpv": false,
+                        "enableHeadTracking": false,
+                        "enableImmerrsionStab": false,
+                        "enablePanoFpv": false,
+                        "enableStab": true,
+                        "freshLevelDescription": false,
+                        "modifiable": true,
+                        "stabLevel": 0,
+                        "supportBoostStabLevel": false,
+                        "supportDirectionalLock": true,
+                        "supportFpv": false,
+                        "supportHighStabLevel": false,
+                        "supportPanoFpv": false,
+                        "supportStab": true
+                    },
+                    "startFrame": 0,
+                    "state": 0,
+                    "stitching_optimization": {
+                        "enableAIStitching": false,
+                        "enableDynamicStitching": false,
+                        "enableImageFusionStitching": true,
+                        "enableOpticalFlowStitching": true,
+                        "ignoreDynamicStitching": false,
+                        "ignoreImageFusionStitching": false,
+                        "ignoreOpticalFlowStitching": false,
+                        "optimizedOffset": "",
+                        "supportAIStitching": true,
+                        "supportDynamicStitching": true,
+                        "supportImageFusionStitching": true,
+                        "supportOpticalFlowStitching": true
+                    },
+                    "stitching_setting": {
+                        "cameraAccessory": 15,
+                        "customStitchingValue": 0,
+                        "customStitchingValueMax": 7,
+                        "enableColdShoe": false,
+                        "enableCoolingShell": false,
+                        "enablePropellerGuard": false,
+                        "supportCameraAccessory": [
+                            0,
+                            15,
+                            13,
+                            14,
+                            11,
+                            12
+                        ],
+                        "supportColdShoe": false,
+                        "supportCoolingShell": true,
+                        "supportCustomStitching": true,
+                        "supportPropellerGuard": false,
+                        "supportStitching": true
+                    },
+                    "subtype": 1,
+                    "supplementFrameType": "SupplementFrameTypeNormal",
+                    "supplement_frame_type": 0,
+                    "type": 1,
+                    "url": "/Volumes/Untitled/DCIM/Camera01/VID_20260228_100654_00_012.insvVID_012.insv",
+                    "use_default_camera_transform": false,
+                    "viewType": 0
+                }
+            ],
+            "id": "a01eb276-ca4f-4636-a7e2-8e8b799bed27",
+            "locked": false,
+            "transitions": [
+            ],
+            "type": 0,
+            "visible": true
+        },
+        {
+            "audible": true,
+            "clips": [
+            ],
+            "id": "f8758d42-2d03-4b70-9789-d862bd1a8e21",
+            "locked": false,
+            "transitions": [
+            ],
+            "type": 2,
+            "visible": true
+        }
+    ]
+}

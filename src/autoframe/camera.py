@@ -1,8 +1,8 @@
 """Model-based camera controller for inference.
 
 Loads a trained CameraPredictor checkpoint and runs frame-by-frame
-inference to produce a camera trajectory, with optional post-hoc
-smoothing.
+inference to produce a camera trajectory. All outputs are in radians
+to match the Insta360 Studio .insproj format.
 """
 
 import numpy as np
@@ -45,7 +45,7 @@ class InferenceCamera:
             frame: Preprocessed frame as (H, W, 3) uint8 numpy array.
 
         Returns:
-            Dict with yaw_deg, pitch_deg, fov_deg.
+            Dict with pan_rad, tilt_rad, fov_rad (all in radians).
         """
         import cv2
 
@@ -58,24 +58,24 @@ class InferenceCamera:
 
 
 def smooth_trajectory(
-    yaws: list[float],
-    pitches: list[float],
+    pans: list[float],
+    tilts: list[float],
     fovs: list[float],
     window: int = 15,
 ) -> tuple[list[float], list[float], list[float]]:
     """Post-process smooth pass over the full trajectory.
 
-    Uses circular smoothing for yaw to handle wraparound.
+    Uses circular smoothing for pan (yaw) to handle wraparound.
+    All values in radians.
     """
-    rads = np.radians(yaws)
-    sin_smooth = uniform_filter1d(np.sin(rads), size=window)
-    cos_smooth = uniform_filter1d(np.cos(rads), size=window)
-    smooth_yaws = np.degrees(np.arctan2(sin_smooth, cos_smooth)).tolist()
+    sin_smooth = uniform_filter1d(np.sin(pans), size=window)
+    cos_smooth = uniform_filter1d(np.cos(pans), size=window)
+    smooth_pans = np.arctan2(sin_smooth, cos_smooth).tolist()
 
-    smooth_pitches = uniform_filter1d(np.array(pitches, dtype=float), size=window).tolist()
+    smooth_tilts = uniform_filter1d(np.array(tilts, dtype=float), size=window).tolist()
     smooth_fovs = uniform_filter1d(np.array(fovs, dtype=float), size=window).tolist()
 
-    return smooth_yaws, smooth_pitches, smooth_fovs
+    return smooth_pans, smooth_tilts, smooth_fovs
 
 
 def _get_device() -> torch.device:

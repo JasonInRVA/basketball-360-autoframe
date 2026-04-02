@@ -120,7 +120,8 @@ class CameraPredictor(nn.Module):
             hidden: GRU hidden state from previous frame.
 
         Returns:
-            Dict with yaw_deg, pitch_deg, fov_deg and updated hidden state.
+            Dict with pan_rad, tilt_rad, fov_rad (all radians) and
+            updated hidden state.
         """
         self.eval()
         with torch.no_grad():
@@ -128,11 +129,11 @@ class CameraPredictor(nn.Module):
             pred, hidden = self.forward(x, hidden)
             pred = pred.squeeze()  # (4,)
 
-            sin_yaw, cos_yaw, pitch, fov = pred.cpu().numpy()
-            yaw_deg = float(torch.atan2(pred[0], pred[1]).cpu().numpy() * 180 / 3.14159265)
+            sin_pan, cos_pan, tilt, fov = pred.cpu().numpy()
+            pan_rad = float(torch.atan2(pred[0], pred[1]).cpu().numpy())
 
             return {
-                "yaw_deg": yaw_deg,
-                "pitch_deg": float(pitch),
-                "fov_deg": float(fov),
+                "pan_rad": pan_rad,
+                "tilt_rad": float(tilt),
+                "fov_rad": float(fov),
             }, hidden

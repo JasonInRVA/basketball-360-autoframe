@@ -8,12 +8,12 @@ class ModelConfig:
     """Neural network architecture and inference parameters."""
 
     # Architecture
-    backbone: str = "resnet18"  # resnet18, resnet34, efficientnet_b0
+    backbone: str = "resnet18"
     gru_hidden_size: int = 256
     gru_num_layers: int = 2
     dropout: float = 0.1
 
-    # Input preprocessing — frames are downsampled to this size for the CNN
+    # Input preprocessing
     frame_width: int = 640
     frame_height: int = 320
 
@@ -25,20 +25,18 @@ class ModelConfig:
 class TrainingConfig:
     """Training hyperparameters."""
 
-    # Data
-    data_dir: str = "data/training"  # Contains video + .insprj pairs
+    data_dir: str = "data/training"
     val_split: float = 0.15
-    sample_fps: float = 5.0  # Subsample from video FPS (camera motion is smooth)
-    sequence_length: int = 60  # Frames of context per training sample
+    sample_fps: float = 5.0
+    sequence_length: int = 60
 
-    # Optimization
     epochs: int = 100
     batch_size: int = 16
     learning_rate: float = 1e-4
     weight_decay: float = 1e-5
-    lr_scheduler: str = "cosine"  # cosine, step
+    lr_scheduler: str = "cosine"
 
-    # Loss weights (yaw is most important for basketball side-to-side action)
+    # Loss weights
     weight_yaw: float = 2.0
     weight_pitch: float = 1.0
     weight_fov: float = 1.0
@@ -49,22 +47,22 @@ class TrainingConfig:
 
     # Output
     output_dir: str = "runs"
-    save_every: int = 10  # Save checkpoint every N epochs
+    save_every: int = 10
 
 
 @dataclass
 class InferenceConfig:
-    """Top-level config for running inference (generating a sidecar)."""
+    """Config for running inference (generating keyframes for a project)."""
 
     model: ModelConfig = field(default_factory=ModelConfig)
 
-    input_path: str = ""
-    output_path: str = ""  # .insprj output path (defaults to <input>.insprj)
+    input_path: str = ""  # Source equirectangular video
+    project_path: str = ""  # Existing .insproj to modify
+    output_path: str = ""  # Where to save modified .insproj
 
-    # Post-processing smoothing window (frames). Applied after model prediction.
+    # Post-processing smoothing window (frames)
     smooth_window: int = 15
 
-    # Keyframe density in the output .insprj (milliseconds between keyframes).
-    # 200ms = 5 keyframes/sec — dense enough for smooth motion, sparse enough
-    # for Insta360 Studio to handle comfortably.
-    keyframe_interval_ms: float = 200.0
+    # Keyframe density: frames between keyframes in output.
+    # 6 frames at 30fps = 5 keyframes/second.
+    keyframe_interval_frames: int = 6

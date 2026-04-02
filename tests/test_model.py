@@ -18,13 +18,12 @@ def model():
 
 def test_model_output_shape(model):
     """Model should output (B, T, 4) predictions."""
-    frames = torch.randn(2, 5, 3, 320, 640)  # B=2, T=5
+    frames = torch.randn(2, 5, 3, 320, 640)
     pred, hidden = model(frames)
     assert pred.shape == (2, 5, 4)
 
 
 def test_model_hidden_state_shape(model):
-    """Hidden state should have correct dimensions."""
     frames = torch.randn(1, 3, 3, 320, 640)
     _, hidden = model(frames)
     assert hidden.shape[0] == 1  # num_layers
@@ -38,8 +37,8 @@ def test_model_streaming_inference(model):
     result1, hidden1 = model.predict_single(frame, None)
     result2, hidden2 = model.predict_single(frame, hidden1)
 
-    assert "yaw_deg" in result1
-    assert "pitch_deg" in result1
-    assert "fov_deg" in result1
-    # Hidden state should have changed
+    # Output should be in radians
+    assert "pan_rad" in result1
+    assert "tilt_rad" in result1
+    assert "fov_rad" in result1
     assert not torch.equal(hidden1, hidden2)
