@@ -1,9 +1,9 @@
 """Equirectangular <-> rectilinear projection math.
 
 NOTE: This module is only used during training (to preprocess frames for
-the CNN) and for optional local preview. It is NOT on the critical output
-path — Insta360 Studio handles the actual rendering from the .insprj
-sidecar we generate. Bugs here affect model training quality, not output.
+the CNN) and optional local preview. It is NOT on the critical output
+path — Insta360 Studio handles rendering using the keyframes we inject
+into its project files. Bugs here affect model training quality, not output.
 
 Provides conversion between equirectangular and perspective views, and
 utilities for mapping pixel coordinates to spherical angles.

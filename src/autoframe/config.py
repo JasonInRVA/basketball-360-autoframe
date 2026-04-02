@@ -59,6 +59,7 @@ class InferenceConfig:
     input_path: str = ""  # Source equirectangular video
     project_path: str = ""  # Existing .insproj to modify
     output_path: str = ""  # Where to save modified .insproj
+    project_format: str = "auto"  # auto|insproj|insprj
 
     # Post-processing smoothing window (frames)
     smooth_window: int = 15

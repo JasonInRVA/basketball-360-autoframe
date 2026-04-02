@@ -95,6 +95,11 @@ def reframe(
         6, "--keyframe-interval",
         help="Frames between keyframes (6 at 30fps = 5/sec).",
     ),
+    project_format: str = typer.Option(
+        "auto",
+        "--format",
+        help="Storage backend: auto|insproj|insprj (legacy sidecar not yet supported).",
+    ),
     version: Optional[bool] = typer.Option(
         None, "--version", "-v", callback=version_callback, is_eager=True,
     ),
@@ -118,6 +123,7 @@ def reframe(
         smooth_window=smooth,
         keyframe_interval_frames=keyframe_interval,
         model=ModelConfig(checkpoint_path=str(model)),
+        project_format=project_format,
     )
 
     run(config)
@@ -154,14 +160,19 @@ def inspect_project(
         help="Path to .insproj file or project directory.",
         exists=True,
     ),
+    project_format: str = typer.Option(
+        "auto",
+        "--format",
+        help="Storage backend: auto|insproj|insprj (legacy sidecar not yet supported).",
+    ),
 ):
     """Inspect an Insta360 Studio project and display its keyframes."""
     import math
+    from autoframe.storage import get_store
 
-    from autoframe.insta360_parser import extract_keyframes, get_clip_info, read_project
-
-    proj = read_project(project)
-    clip_info = get_clip_info(proj)
+    store = get_store(project, project_format)
+    proj = store.read(project)
+    clip_info = store.get_clip_info(proj)
 
     console.print(f"[bold]{project.name}[/bold]")
     console.print(f"  Source:  {clip_info['name']}")
@@ -170,7 +181,7 @@ def inspect_project(
     console.print(f"  Trim:    {clip_info['left_trim']} → {clip_info['right_trim']}")
 
     try:
-        keyframes = extract_keyframes(proj)
+        keyframes = store.extract_keyframes(proj)
     except ValueError as e:
         console.print(f"\n  [yellow]{e}[/yellow]")
         return

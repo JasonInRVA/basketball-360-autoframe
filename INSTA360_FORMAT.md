@@ -435,6 +435,7 @@ boilerplate — we only touch the keyframe data.
 3. Update `camera_transform` to match the first keyframe and set `lastModifiedTime` to the current timestamp (`YYYY.MM.DD HH:MM:SS`).
 4. Save with UTF-8 JSON formatting; Studio accepts human-readable indenting.
 5. Relaunch Studio; the project will reflect the new keyframes. If Studio does not list the project after moving/copying, add it to `~/Library/Application Support/Insta360/Insta360 Studio/nle/pro.insproj` (Studio’s project registry) with `projectPath` pointing to the directory, then restart Studio.
+6. Backend abstraction: the code uses a storage backend (`insproj` implemented, `insprj` planned). CLI `--format` defaults to `auto` and resolves to `insproj`.
 
 ### What We Need to Generate per Keyframe
 

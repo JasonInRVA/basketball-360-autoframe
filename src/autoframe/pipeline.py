@@ -13,12 +13,8 @@ from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn
 
 from autoframe.camera import InferenceCamera, smooth_trajectory
 from autoframe.config import InferenceConfig
-from autoframe.insta360_parser import (
-    inject_keyframes,
-    read_project,
-    save_project,
-    trajectory_to_keyframes,
-)
+from autoframe.storage import get_store
+from autoframe.insta360_parser import trajectory_to_keyframes
 from autoframe.video_io import FrameReader
 
 console = Console()
@@ -55,9 +51,11 @@ def run(config: InferenceConfig) -> str:
     console.print(f"[bold]Input:[/bold]   {config.input_path}")
     console.print(f"[bold]Model:[/bold]   {config.model.checkpoint_path}")
     console.print(f"[bold]Project:[/bold] {config.project_path}")
+    console.print(f"[bold]Format:[/bold]  {config.project_format}")
 
-    # Load the existing project as template
-    project = read_project(config.project_path)
+    # Load the existing project as template via store
+    store = get_store(config.project_path, config.project_format)
+    project = store.read(config.project_path)
 
     # Initialize video reader and model
     reader = FrameReader(config.input_path)
@@ -112,9 +110,9 @@ def run(config: InferenceConfig) -> str:
         keyframe_interval_frames=config.keyframe_interval_frames,
     )
 
-    inject_keyframes(project, keyframes)
+    store.inject_keyframes(project, keyframes)
 
-    output_path = save_project(project, config.output_path)
+    output_path = store.save(project, config.output_path)
 
     console.print(f"\n[bold green]Done![/bold green] Modified project: {output_path}")
     console.print(

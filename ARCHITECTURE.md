@@ -125,6 +125,15 @@ path reference, and setting correct), we modify an existing project:
 3. **Re-open in Studio and export**. No rendering is done by our code.
 4. **If Studio doesn’t list the project** after copying/moving: Studio tracks projects in `~/Library/Application Support/Insta360/Insta360 Studio/nle/pro.insproj`. Add an entry pointing `projectPath` to the project directory (id/name/fps from the `.insproj`), then relaunch Studio to re-index.
 
+### Storage abstraction
+
+We treat “camera trajectory” as a backend-agnostic asset. A store backend handles loading, extracting keyframes, injecting new ones, and saving:
+
+- `insproj` (implemented): timeline project JSON (`*.insproj` inside a project directory). Default `--format auto` resolves to this.
+- `insprj` (planned): legacy XML sidecar; interface is wired but backend is not yet implemented.
+
+Inference and CLI choose the backend via `--format`; training/dataset currently target `insproj`.
+
 ### Why This Matters
 
 Every line of rendering code we don't write is a line that can't have bugs. Insta360

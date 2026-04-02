@@ -96,14 +96,19 @@ autoframe train DATA_DIR [--epochs 100] [--batch-size 16] [--lr 1e-4]
 
 # Inject AI-predicted keyframes into an Insta360 Studio project
 autoframe reframe INPUT_VIDEO MODEL_CHECKPOINT --project PROJECT.insproj
-                  [-o output.insproj] [--smooth 15] [--keyframe-interval 6]
+                  [--format auto|insproj] [-o output.insproj]
+                  [--smooth 15] [--keyframe-interval 6]
 
 # Show video info
 autoframe info VIDEO_FILE
 
 # Inspect an Insta360 Studio project (show keyframes, clip info)
-autoframe inspect-project PROJECT_PATH
+autoframe inspect-project PROJECT_PATH [--format auto|insproj]
 ```
+
+### Storage abstraction
+- **insproj (supported):** Insta360 Studio project JSON (timeline). Keyframes live in `tracks[1].clips[0].key_frame_track.node_list`. This is the default.
+- **insprj (planned):** Legacy XML sidecar. The interface is wired for it, but the backend is not yet implemented; use `--format insproj` (or leave default `auto`) for now.
 
 ## Project structure
 

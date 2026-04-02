@@ -1,7 +1,7 @@
 """PyTorch Dataset for training the camera trajectory model.
 
 Pairs equirectangular video frames with per-frame camera parameters
-extracted from Insta360 Studio .insproj project files.
+extracted from Insta360 Studio project files.
 """
 
 from pathlib import Path
