@@ -1,0 +1,16 @@
+{
+    "/Volumes/Untitled/DCIM/Camera01/VID_20260228_100654_00_012.insvVID_012.insv": {
+        "Clip1": {
+            "totalFrames": 18263,
+            "trimEnd": 450,
+            "trimStart": 0,
+            "updateTime": 1775146421678
+        },
+        "default": {
+            "totalFrames": 18263,
+            "trimEnd": 18263,
+            "trimStart": 0,
+            "updateTime": 0
+        }
+    }
+}

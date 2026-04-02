@@ -29,24 +29,25 @@ def version_callback(value: bool):
 def train(
     data_dir: Path = typer.Argument(
         ...,
-        help="Directory containing video files and their .insprj sidecar files.",
+        help="Directory containing Insta360 Studio project directories.",
         exists=True,
     ),
-    epochs: int = typer.Option(100, "--epochs", "-e", help="Number of training epochs."),
-    batch_size: int = typer.Option(16, "--batch-size", "-b", help="Batch size."),
-    lr: float = typer.Option(1e-4, "--lr", help="Learning rate."),
-    sequence_length: int = typer.Option(60, "--seq-len", help="Frames per training sample."),
-    sample_fps: float = typer.Option(5.0, "--sample-fps", help="Subsample video to this FPS."),
-    backbone: str = typer.Option("resnet18", "--backbone", help="CNN backbone (resnet18, resnet34, efficientnet_b0)."),
-    output_dir: str = typer.Option("runs", "--output-dir", help="Directory for checkpoints and logs."),
+    epochs: int = typer.Option(100, "--epochs", "-e"),
+    batch_size: int = typer.Option(16, "--batch-size", "-b"),
+    lr: float = typer.Option(1e-4, "--lr"),
+    sequence_length: int = typer.Option(60, "--seq-len"),
+    sample_fps: float = typer.Option(5.0, "--sample-fps"),
+    backbone: str = typer.Option("resnet18", "--backbone"),
+    output_dir: str = typer.Option("runs", "--output-dir"),
     version: Optional[bool] = typer.Option(
-        None, "--version", "-v", callback=version_callback, is_eager=True, help="Show version.",
+        None, "--version", "-v", callback=version_callback, is_eager=True,
     ),
 ):
-    """Train the camera trajectory model from video + .insprj pairs.
+    """Train the camera trajectory model.
 
-    Place your Insta360 source videos alongside their .insprj sidecar files
-    (from Insta360 Studio) in DATA_DIR, then run this command.
+    DATA_DIR should contain Insta360 Studio project directories (each
+    containing a .insproj file with keyframes) and the corresponding
+    source video files.
     """
     from autoframe.config import ModelConfig, TrainingConfig
     from autoframe.train import train as run_training
@@ -74,47 +75,55 @@ def reframe(
         ...,
         help="Path to 360° equirectangular video.",
         exists=True,
-        readable=True,
     ),
     model: Path = typer.Argument(
         ...,
         help="Path to trained model checkpoint (.pt file).",
         exists=True,
     ),
+    project: Path = typer.Option(
+        ..., "--project", "-p",
+        help="Path to existing Insta360 Studio .insproj file (used as template).",
+        exists=True,
+    ),
     output: Optional[Path] = typer.Option(
         None, "--output", "-o",
-        help="Output .insprj path. Defaults to <input>.insprj.",
+        help="Output .insproj path. Defaults to overwriting the project (with backup).",
     ),
-    smooth: int = typer.Option(
-        15, "--smooth",
-        help="Post-prediction smoothing window (frames).",
+    smooth: int = typer.Option(15, "--smooth"),
+    keyframe_interval: int = typer.Option(
+        6, "--keyframe-interval",
+        help="Frames between keyframes (6 at 30fps = 5/sec).",
     ),
-    keyframe_interval: float = typer.Option(
-        200.0, "--keyframe-interval",
-        help="Milliseconds between keyframes in output .insprj.",
+    project_format: str = typer.Option(
+        "auto",
+        "--format",
+        help="Storage backend: auto|insproj|insprj (legacy sidecar not yet supported).",
     ),
     version: Optional[bool] = typer.Option(
-        None, "--version", "-v", callback=version_callback, is_eager=True, help="Show version.",
+        None, "--version", "-v", callback=version_callback, is_eager=True,
     ),
 ):
-    """Generate an .insprj sidecar for a 360° video using a trained model.
+    """Inject AI-predicted keyframes into an Insta360 Studio project.
 
-    The model predicts where a human camera operator would point the virtual
-    camera at each frame. The output is an .insprj file that Insta360 Studio
-    can use to render the final reframed video with full quality and audio.
+    Creates a backup of the original project, then replaces the keyframe
+    track with the model's predicted camera trajectory. Open the modified
+    project in Insta360 Studio to preview and export.
     """
     from autoframe.config import InferenceConfig, ModelConfig
     from autoframe.pipeline import run
 
     if output is None:
-        output = input_video.with_suffix(".insprj")
+        output = project
 
     config = InferenceConfig(
         input_path=str(input_video),
+        project_path=str(project),
         output_path=str(output),
         smooth_window=smooth,
-        keyframe_interval_ms=keyframe_interval,
+        keyframe_interval_frames=keyframe_interval,
         model=ModelConfig(checkpoint_path=str(model)),
+        project_format=project_format,
     )
 
     run(config)
@@ -145,22 +154,46 @@ def info(
 
 
 @app.command()
-def parse_sidecar(
-    sidecar: Path = typer.Argument(..., help="Path to .insprj file.", exists=True),
+def inspect_project(
+    project: Path = typer.Argument(
+        ...,
+        help="Path to .insproj file or project directory.",
+        exists=True,
+    ),
+    project_format: str = typer.Option(
+        "auto",
+        "--format",
+        help="Storage backend: auto|insproj|insprj (legacy sidecar not yet supported).",
+    ),
 ):
-    """Parse and display keyframes from an Insta360 .insprj sidecar file."""
-    from autoframe.insta360_parser import parse_insprj
+    """Inspect an Insta360 Studio project and display its keyframes."""
+    import math
+    from autoframe.storage import get_store
 
-    keyframes = parse_insprj(sidecar)
-    console.print(f"[bold]{sidecar.name}[/bold] — {len(keyframes)} keyframes\n")
+    store = get_store(project, project_format)
+    proj = store.read(project)
+    clip_info = store.get_clip_info(proj)
 
+    console.print(f"[bold]{project.name}[/bold]")
+    console.print(f"  Source:  {clip_info['name']}")
+    console.print(f"  Frames:  {clip_info['source_frames']}")
+    console.print(f"  FPS:     {clip_info['fps']}")
+    console.print(f"  Trim:    {clip_info['left_trim']} → {clip_info['right_trim']}")
+
+    try:
+        keyframes = store.extract_keyframes(proj)
+    except ValueError as e:
+        console.print(f"\n  [yellow]{e}[/yellow]")
+        return
+
+    console.print(f"\n  [bold]{len(keyframes)} keyframes:[/bold]\n")
     for kf in keyframes:
         console.print(
-            f"  {kf.time_ms / 1000:.2f}s | "
-            f"pan={kf.pan:+7.2f}° | "
-            f"tilt={kf.tilt:+6.2f}° | "
-            f"roll={kf.roll:+6.2f}° | "
-            f"fov={kf.fov:.3f}rad ({kf.fov * 180 / 3.14159:.0f}°)"
+            f"    frame {kf.time:5d} | "
+            f"pan={math.degrees(kf.pan):+7.2f}° | "
+            f"tilt={math.degrees(kf.tilt):+6.2f}° | "
+            f"fov={math.degrees(kf.fov):5.1f}° | "
+            f"dist={kf.distance:.3f}"
         )
 
 

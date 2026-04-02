@@ -2,7 +2,8 @@
 
 Handles reading equirectangular frames from Insta360 X4 output for
 model training and inference. Video writing/rendering is handled by
-Insta360 Studio — we only output .insprj sidecar files.
+Insta360 Studio — we inject keyframes into its project files and let
+Studio render.
 """
 
 from pathlib import Path

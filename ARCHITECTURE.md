@@ -33,10 +33,11 @@ for several reasons:
 
 We have something much more valuable than object labels: **expert demonstrations.**
 
-When you manually pan through a 360° video in the Insta360 app and export it, the
-app creates an `.insprj` sidecar file containing the exact pan/tilt/roll/FOV
-trajectory you applied, timestamped in milliseconds. This is a complete record of
-every camera decision the human operator made.
+When you manually reframe a 360° video in Insta360 Studio, your pan/tilt/zoom
+decisions are saved in a `.insproj` project file — a JSON-based directory structure
+containing the exact camera trajectory as keyframes with all angles in **radians**
+and all timestamps as **frame numbers**. This is a complete record of every camera
+decision the human operator made.
 
 Paired with the source equirectangular footage, this gives us supervised training
 data: for each frame, we know both what the world looked like and what the human
@@ -51,25 +52,46 @@ from teleoperation), and game-playing AI (learn moves from expert replays).
 
 ```
 data/training/
-    game_2024_01_15.mp4          <- Raw equirectangular video
-    game_2024_01_15.insprj       <- Sidecar with keyframed pan/tilt/fov trajectory
-    game_2024_02_03.mp4
-    game_2024_02_03.insprj
-    ...
+    Game 2024-01-15/                             <- Insta360 Studio project directory
+        <uuid>.insproj                           <- Main project file (JSON)
+        project_medias.json
+        footage_info.json
+        rough_cut.json
+        project_settings/
+            <uuid>.json
+    Game 2024-02-03/
+        <uuid>.insproj
+        ...
 ```
 
-The `.insprj` file is XML from Insta360 Studio:
-```xml
-<keyframe time="15845" pan="0" tilt="0" roll="0" fov="1.309" distance="0.6"/>
-<keyframe time="30000" pan="45.5" tilt="-10" roll="0" fov="1.1" distance="0.5"/>
+The `.insproj` file is JSON. Keyframes live inside the clip's `key_frame_track.node_list`:
+
+```json
+{
+    "auto_fov": 0,
+    "distance": 0.4,
+    "fov": 1.19,
+    "is_headtrack": 0,
+    "name": "point0",
+    "node_type": 0,
+    "pan": 0.2096,
+    "roll": 0,
+    "src_time": 0,
+    "state": 7,
+    "tilt": -0.311,
+    "time": 0
+}
 ```
 
-These sparse keyframes are interpolated to produce dense per-frame labels.
+All angles are in **radians**. `time` and `src_time` are **frame numbers**.
+These sparse keyframes are interpolated to produce dense per-frame labels for training.
 
-## Key Design Decision: Output .insprj, Not Video
+See [INSTA360_FORMAT.md](INSTA360_FORMAT.md) for the full format specification.
 
-A critical simplification: **the AI does not render video.** It outputs an `.insprj`
-sidecar file, and Insta360 Studio handles the actual rendering.
+## Key Design Decision: Output .insproj, Not Video
+
+A critical simplification: **the AI does not render video.** It modifies an existing
+Insta360 Studio project by replacing the keyframe track, and Studio handles rendering.
 
 This means we don't need to implement:
 - Equirectangular-to-rectilinear projection for output
@@ -78,9 +100,39 @@ This means we don't need to implement:
 - Roll/distance parameter interpretation
 - Lens correction, stabilization, or any Insta360-specific processing
 
-The AI's job is narrow and well-defined: **predict a camera trajectory and write it
-as keyframes in a format Insta360 Studio understands.** Studio does the rest with
+The AI's job is narrow and well-defined: **predict a camera trajectory and inject it
+as keyframes into an existing Insta360 Studio project.** Studio does the rest with
 full quality, audio, and all the edge cases already solved.
+
+### Template-Based Approach
+
+Rather than generating a project from scratch (which requires getting every UUID,
+path reference, and setting correct), we modify an existing project:
+
+1. User creates a project in Studio with the source video on the timeline
+2. Our tool reads the `.insproj`, locates the clip's `key_frame_track.node_list`
+3. We replace `node_list` with AI-generated keyframes (alternating keyframe and
+   transition nodes)
+4. We update `camera_transform` to match the first keyframe
+5. We clear any deep track data (Studio's built-in tracking)
+6. User reopens Studio and exports the final video
+
+### Operational workflow (practical steps)
+
+1. **Create a template project in Insta360 Studio** with the target clip on the timeline (no keyframes required). Studio writes a directory containing `<uuid>.insproj`, `project_medias.json`, etc.
+2. **Run inference**: `autoframe reframe <video> <checkpoint> --project <path/to/<uuid>.insproj> [--smooth 15] [--keyframe-interval 6]`.  
+   - Pipeline reads the `.insproj`, predicts pan/tilt/fov per frame (radians), subsamples to keyframes, writes them into `key_frame_track.node_list`, updates `camera_transform`, and saves (with backup).
+3. **Re-open in Studio and export**. No rendering is done by our code.
+4. **If Studio doesn’t list the project** after copying/moving: Studio tracks projects in `~/Library/Application Support/Insta360/Insta360 Studio/nle/pro.insproj`. Add an entry pointing `projectPath` to the project directory (id/name/fps from the `.insproj`), then relaunch Studio to re-index.
+
+### Storage abstraction
+
+We treat “camera trajectory” as a backend-agnostic asset. A store backend handles loading, extracting keyframes, injecting new ones, and saving:
+
+- `insproj` (implemented): timeline project JSON (`*.insproj` inside a project directory). Default `--format auto` resolves to this.
+- `insprj` (planned): legacy XML sidecar; interface is wired but backend is not yet implemented.
+
+Inference and CLI choose the backend via `--format`; training/dataset currently target `insproj`.
 
 ### Why This Matters
 
@@ -114,14 +166,14 @@ Equirectangular frame (640x320, RGB)
                  |
                  v
       (sin_yaw, cos_yaw, pitch, fov)
+          all values in radians
 ```
 
 ### Why sin/cos encoding for yaw?
 
-Yaw (pan) is circular: 179 degrees and -179 degrees are 2 degrees apart, but
-naively they look 358 degrees apart. If we predicted raw yaw degrees, the model
-would see a huge loss spike at the +/-180 degree boundary and produce erratic
-behavior there.
+Yaw (pan) is circular: 179° and -179° are 2° apart, but naively they look 358°
+apart. If we predicted raw yaw, the model would see a huge loss spike at the ±180°
+boundary and produce erratic behavior there.
 
 By encoding yaw as `(sin(yaw), cos(yaw))`, the representation is continuous
 everywhere on the circle. At inference time, we recover the angle with `atan2`.
@@ -161,29 +213,29 @@ the model from developing a left/right bias.
 +-----------------------+
 | Predict trajectory    |  Read equirectangular frames -> resize to 640x320
 |                       |  -> run through trained model -> collect raw
-|                       |  (yaw, pitch, fov) predictions per frame
+|                       |  (pan, tilt, fov) predictions per frame (radians)
 +-----------+-----------+
             v
 +-----------------------+
-| Smooth trajectory     |  Post-hoc uniform filter on sin/cos(yaw), pitch, fov.
-|                       |  Removes any residual jitter the model produces.
+| Smooth trajectory     |  Post-hoc uniform filter on sin/cos(pan), tilt, fov.
+|                       |  Circular smoothing avoids discontinuity at ±pi.
 +-----------+-----------+
             v
 +-----------------------+
-| Write .insprj         |  Convert dense per-frame predictions to sparse
-|                       |  keyframes (every 200ms). Write XML sidecar file
-|                       |  compatible with Insta360 Studio.
+| Inject keyframes      |  Convert dense per-frame predictions to sparse
+|                       |  keyframes (every 6 frames = 5/sec at 30fps).
+|                       |  Inject into existing .insproj project file (JSON).
 +-----------+-----------+
             v
 +-----------------------+
-| Insta360 Studio       |  User opens Studio, loads source video + sidecar,
+| Insta360 Studio       |  User opens Studio, loads the modified project,
 | (external)            |  and exports the final reframed video with full
 |                       |  quality, audio, stabilization, lens correction.
 +-----------------------+
 ```
 
 This is a single-pass pipeline. No video rendering, no FFmpeg, no audio handling.
-The AI predicts, we write XML, Studio renders.
+The AI predicts, we inject keyframes into the project JSON, Studio renders.
 
 ## Preparing Training Data
 
@@ -191,32 +243,33 @@ The AI predicts, we write XML, Studio renders.
 Mount the Insta360 X4 on a tripod at the court. Record full games.
 
 ### Step 2: Create the camera trajectory
-In the Insta360 app (mobile) or Insta360 Studio (desktop), manually reframe the
-video -- pan, tilt, and zoom to follow the game as you'd want the final video to
-look. Export the reframed video to YouTube as you normally would.
+In Insta360 Studio (desktop), import the 360° video and manually reframe it —
+pan, tilt, and zoom to follow the game as you'd want the final video to look.
+Save the project.
 
-### Step 3: Extract the sidecar
-Open the same project in **Insta360 Studio** (desktop). The `.insprj` XML file
-is saved alongside the project. This contains all your keyframe data.
+### Step 3: Organize training data
+Each Insta360 Studio project is a directory containing a `.insproj` file with
+your keyframe data. Place these project directories in `data/training/`.
 
-Verify with: `autoframe parse-sidecar path/to/project.insprj`
+Verify your projects parse correctly:
+```bash
+autoframe inspect-project "data/training/Game 2024-01-15/"
+```
 
-### Step 4: Organize
-Place each source video and its `.insprj` sidecar in `data/training/` with
-matching filenames.
-
-### Step 5: Train
+### Step 4: Train
 ```bash
 autoframe train data/training/ --epochs 100
 ```
 
-### Step 6: Generate sidecar for new footage
+### Step 5: Generate keyframes for new footage
+First, create a project in Insta360 Studio with the new video on the timeline
+(no keyframes needed). Then:
 ```bash
-autoframe reframe new_game.mp4 runs/<run>/best.pt
+autoframe reframe new_game.mp4 runs/<run>/best.pt --project "path/to/project.insproj"
 ```
 
-### Step 7: Render in Insta360 Studio
-Open Studio, import the source video, load the generated `.insprj`, and export.
+### Step 6: Render in Insta360 Studio
+Open Studio, load the modified project, and export. Upload to YouTube.
 
 ## What This Architecture Cannot Do (Known Limitations)
 
@@ -236,14 +289,15 @@ Open Studio, import the source video, load the generated `.insprj`, and export.
    very long sequences (>30 min). The post-hoc smoothing mitigates this, and
    the model can be reset at natural breaks (halftime, timeouts).
 
-5. **Dependent on Insta360 Studio.** The output is an `.insprj` file, not a
-   standalone video. You need Insta360 Studio to produce the final output. This
-   is a deliberate tradeoff: we leverage their polished renderer instead of
+5. **Dependent on Insta360 Studio.** The output is a modified `.insproj` project,
+   not a standalone video. You need Insta360 Studio to produce the final output.
+   This is a deliberate tradeoff: we leverage their polished renderer instead of
    building our own.
 
-6. **Sidecar format is not officially documented.** Our `.insprj` writer is based
-   on reverse-engineered format documentation. If Insta360 changes the format in
-   a future Studio update, the writer may need updating.
+6. **Project format is not officially documented.** Our `.insproj` reader/writer
+   is based on reverse-engineered format observation from real Studio projects.
+   If Insta360 changes the format in a future Studio update, the code may need
+   updating. See [INSTA360_FORMAT.md](INSTA360_FORMAT.md) for our format docs.
 
 ## Key References
 
@@ -255,5 +309,6 @@ Open Studio, import the source video, load the generated `.insprj`, and export.
 - **Pano2Vid** (Su et al., 2016) -- Automatic cinematography from 360 video using
   candidate viewing directions.
 
-- **Insta360 .insprj format** -- Documented at `insta.pk360.de/studio202x_insprj/`.
-  XML format with keyframe pan/tilt/roll/fov and easing curves.
+- **Insta360 Studio project format** -- Documented in [INSTA360_FORMAT.md](INSTA360_FORMAT.md),
+  reverse-engineered from real project files. JSON-based directory structure with
+  keyframes using radians and frame numbers.

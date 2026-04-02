@@ -1,0 +1,26 @@
+{
+    "/Volumes/Untitled/DCIM/Camera01/VID_20260228_100654_00_012.insvVID_012.insv": {
+        "camera_transform": {
+            "distance": 0.4007705748081207,
+            "eulers": {
+                "pitch": {
+                    "type": 0,
+                    "value": -0.32462576031684875
+                },
+                "roll": {
+                    "type": 0,
+                    "value": 0
+                },
+                "yaw": {
+                    "type": 0,
+                    "value": 0.0646330714225769
+                }
+            },
+            "fov": {
+                "type": 0,
+                "value": 1.1827789545059204
+            }
+        },
+        "player_frame": 38
+    }
+}

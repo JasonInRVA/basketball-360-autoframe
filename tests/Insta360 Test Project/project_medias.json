@@ -1,0 +1,17 @@
+[
+    {
+        "default": "a9aeebe2-ef29-46bd-ac2b-35641ec80b56",
+        "display_name": "VID_012.insv",
+        "durations": 608.774833333,
+        "icon_type": 24,
+        "import_time": "1775146318899",
+        "paths": [
+            "/Volumes/Untitled/DCIM/Camera01/LRV_20260228_100654_01_012.lrv",
+            "/Volumes/Untitled/DCIM/Camera01/VID_20260228_100654_00_012.insv"
+        ],
+        "settings": [
+            "dcf6d329-2969-40f9-a2bf-1e701a73902a"
+        ],
+        "uuid": "/Volumes/Untitled/DCIM/Camera01/VID_20260228_100654_00_012.insvVID_012.insv"
+    }
+]

@@ -1,10 +1,10 @@
 """Main processing pipeline for inference.
 
 Single-pass pipeline: reads equirectangular video frames, runs the trained
-model to predict camera trajectory, smooths the result, and writes an
-.insprj sidecar file. The actual video rendering is handled by Insta360
-Studio, which reads the sidecar and produces the final output with full
-quality, audio, lens correction, and stabilization.
+model to predict camera trajectory, smooths the result, and injects the
+keyframes into an Insta360 Studio project file (.insproj).
+
+The actual video rendering is handled by Insta360 Studio.
 """
 
 import cv2
@@ -13,7 +13,8 @@ from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn
 
 from autoframe.camera import InferenceCamera, smooth_trajectory
 from autoframe.config import InferenceConfig
-from autoframe.insta360_parser import trajectory_to_keyframes, write_insprj
+from autoframe.storage import get_store
+from autoframe.insta360_parser import trajectory_to_keyframes
 from autoframe.video_io import FrameReader
 
 console = Console()
@@ -22,26 +23,41 @@ console = Console()
 def run(config: InferenceConfig) -> str:
     """Execute the inference pipeline.
 
-    Reads video → predicts camera trajectory → writes .insprj sidecar.
+    Reads video, predicts camera trajectory, injects keyframes into
+    an existing Insta360 Studio project.
 
     Args:
         config: Inference configuration.
 
     Returns:
-        Path to the output .insprj file.
+        Path to the modified .insproj file.
     """
     if not config.model.checkpoint_path:
         console.print(
             "[red]No model checkpoint specified.[/red]\n"
             "Train a model first with: autoframe train data/training/\n"
-            "Then run: autoframe reframe video.mp4 runs/<run>/best.pt"
+            "Then run: autoframe reframe video.mp4 runs/<run>/best.pt --project <project>"
         )
         raise SystemExit(1)
 
-    console.print(f"[bold]Input:[/bold]  {config.input_path}")
-    console.print(f"[bold]Model:[/bold]  {config.model.checkpoint_path}")
+    if not config.project_path:
+        console.print(
+            "[red]No Insta360 Studio project specified.[/red]\n"
+            "Create a project in Insta360 Studio with your source video,\n"
+            "then pass it with: --project /path/to/project.insproj"
+        )
+        raise SystemExit(1)
 
-    # Initialize
+    console.print(f"[bold]Input:[/bold]   {config.input_path}")
+    console.print(f"[bold]Model:[/bold]   {config.model.checkpoint_path}")
+    console.print(f"[bold]Project:[/bold] {config.project_path}")
+    console.print(f"[bold]Format:[/bold]  {config.project_format}")
+
+    # Load the existing project as template via store
+    store = get_store(config.project_path, config.project_format)
+    project = store.read(config.project_path)
+
+    # Initialize video reader and model
     reader = FrameReader(config.input_path)
     camera = InferenceCamera(config.model.checkpoint_path)
     camera.reset()
@@ -56,8 +72,8 @@ def run(config: InferenceConfig) -> str:
 
     # === Predict camera trajectory ===
     console.print("\n[bold cyan]Predicting camera trajectory...[/bold cyan]")
-    raw_yaws: list[float] = []
-    raw_pitches: list[float] = []
+    raw_pans: list[float] = []
+    raw_tilts: list[float] = []
     raw_fovs: list[float] = []
 
     with Progress(
@@ -73,40 +89,38 @@ def run(config: InferenceConfig) -> str:
                 (config.model.frame_width, config.model.frame_height),
             )
             params = camera.predict_frame(small)
-            raw_yaws.append(params["yaw_deg"])
-            raw_pitches.append(params["pitch_deg"])
-            raw_fovs.append(params["fov_deg"])
+            # Model outputs radians (matching .insproj format)
+            raw_pans.append(params["pan_rad"])
+            raw_tilts.append(params["tilt_rad"])
+            raw_fovs.append(params["fov_rad"])
             progress.advance(task)
 
     # === Smooth trajectory ===
     console.print("[dim]Smoothing trajectory...[/dim]")
-    yaws, pitches, fovs = smooth_trajectory(
-        raw_yaws, raw_pitches, raw_fovs, config.smooth_window
+    pans, tilts, fovs = smooth_trajectory(
+        raw_pans, raw_tilts, raw_fovs, config.smooth_window
     )
 
-    # === Write .insprj sidecar ===
+    # === Convert to keyframes and inject into project ===
     keyframes = trajectory_to_keyframes(
-        yaw_deg=yaws,
-        pitch_deg=pitches,
-        fov_deg=fovs,
+        pan_rad=pans,
+        tilt_rad=tilts,
+        fov_rad=fovs,
         fps=fps,
-        keyframe_interval_ms=config.keyframe_interval_ms,
+        keyframe_interval_frames=config.keyframe_interval_frames,
     )
 
-    output_path = write_insprj(
-        keyframes=keyframes,
-        output_path=config.output_path,
-        source_video_path=config.input_path,
-    )
+    store.inject_keyframes(project, keyframes)
 
-    console.print(f"\n[bold green]Done![/bold green] Sidecar: {output_path}")
+    output_path = store.save(project, config.output_path)
+
+    console.print(f"\n[bold green]Done![/bold green] Modified project: {output_path}")
     console.print(
-        f"[dim]Generated {len(keyframes)} keyframes "
-        f"({config.keyframe_interval_ms:.0f}ms intervals)[/dim]"
+        f"[dim]Injected {len(keyframes)} keyframes "
+        f"(every {config.keyframe_interval_frames} frames)[/dim]"
     )
     console.print(
-        "\n[bold]Next step:[/bold] Open Insta360 Studio, import your source video,\n"
-        "load this sidecar file, and export the reframed video."
+        "\n[bold]Next step:[/bold] Open the project in Insta360 Studio and export."
     )
 
     return str(output_path)
