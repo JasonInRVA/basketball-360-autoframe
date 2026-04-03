@@ -7,7 +7,7 @@ Owner: basketball-360-autoframe
 
 Empirically validate whether the sidecar-first workflow is production-viable:
 
-1. Generate `.insprj` from model predictions.
+1. Inject model predictions into an existing `.insproj` project.
 2. Load in Insta360 Studio desktop.
 3. Export final video with acceptable reliability/quality.
 
@@ -76,7 +76,7 @@ Stay sidecar-first if all are true:
 
 - overall pass rate >= 95% on matrix cases,
 - no blocker failures across both Studio versions,
-- no manual XML repair required for normal operation.
+- no manual JSON repair required for normal operation.
 
 Trigger pivot to SDK-backed renderer if any are true:
 
